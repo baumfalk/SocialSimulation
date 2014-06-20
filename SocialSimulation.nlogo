@@ -27,7 +27,7 @@ breed [cars car]
 
 people-own [
   walker-type   ;; "cautious", "adaptive", "reckless"
-   
+  walked-through-red? 
   own-profit
   observed-profit
 ]
@@ -46,8 +46,9 @@ to setup
 end
 
 to setup-globals
-  set prob-police-appearance 0.01
-  set prob-police-enforcement 0.01
+  set prob-police-appearance 99 
+  set prob-police-enforcement 80
+  
   set number-of-people 100
   set number-of-cars 3
   
@@ -135,11 +136,23 @@ end
 to move-person
   let movement 1
   ;let movement (random 2 + 1) ;; movement speed is a bit random
-  let no-return xcor > pedestrian-traffic-light-xpos
+
   if should-move? movement
   [
-  ;;not pedestrian-traffic-light-red? or round (xcor + movement) < round pedestrian-traffic-light-xpos or no-return  [ 
-    fd movement 
+    ;; walked through red?
+    let moved-onto-road? xcor <= pedestrian-traffic-light-xpos and xcor + movement > pedestrian-traffic-light-xpos
+    if pedestrian-traffic-light-red? and moved-onto-road
+    [
+     set  walked-through-red? true
+    ]
+    
+    if xcor > road-end-xpos and walked-through-red?
+    [
+     set walked-through-red? false 
+    ]
+    
+    fd movement
+     
   ]
 end
 
@@ -209,10 +222,16 @@ to move-car
 end
 
 to update-world
+ 
+  update-lights
+  update-cops
+end  
+
+to update-lights
   ;; we never want two green lights at the same time, 
   ;; but we do want that the red lights are on 1/5th of the green time
   ;; this prevents collisions.
-  ; car-light goes red: 1/5th of green time later pedestrian light goes green
+  ;; car-light goes red: 1/5th of green time later pedestrian light goes green
   if ticks = tick-car-green
   [
     set car-traffic-light-red? false
@@ -240,13 +259,24 @@ to update-world
     set pedestrian-traffic-light-red? true
     color-traffic-light-pedestrian  
   ]
-end  
+end
+
+to update-cops
+  let prob random 100
+  let prob2 random 100
+  if prob < prob-police-appearance
+  [
+    ;; deliquents are people who walked through the red light
+    let deliquents people with [walked-through-red?]
+    show deliquents
+  ]
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
-531
-34
-970
-494
+248
+39
+687
+499
 16
 16
 13.0
