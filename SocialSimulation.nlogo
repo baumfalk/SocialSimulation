@@ -9,13 +9,17 @@ globals [
   pedestrian-traffic-light-red?
   pedestrian-traffic-light-xpos
   pedestrian-traffic-light-ypos
+  road-start-xpos
+  road-end-xpos
+  
 ]
 
 breed [people person]
 breed [cars car]
 
 people-own [
-  walker-type   ;; "cautious", "adaptive", "reckless" 
+  walker-type   ;; "cautious", "adaptive", "reckless"
+   
   profit
 ]
 
@@ -45,6 +49,9 @@ to setup-globals
   set pedestrian-traffic-light-xpos 0
   set pedestrian-traffic-light-ypos 0
   
+  set road-start-xpos 0
+  set road-end-xpos  4
+  
   color-traffic-light-car
   color-traffic-light-pedestrian 
 end
@@ -67,11 +74,10 @@ to color-traffic-light-pedestrian
 end
 
 to setup-road
-    if (pxcor < 4) and (pxcor > 0) [ set pcolor white ]
+    if (pxcor < road-end-xpos) and (pxcor > road-start-xpos) [ set pcolor white ]
 end
 
 to setup-people  
-
   create-people number-of-people [
     ;; leave some space free at the top
     let ycoordinate (random-float (max-pycor * 2 - (max-pycor * 0.4)) - max-pycor)
@@ -115,13 +121,40 @@ end
 to move-person
   let movement (random 2 + 1) ;; movement speed is a bit random
   let no-return xcor > pedestrian-traffic-light-xpos
-  if not pedestrian-traffic-light-red? or round (xcor + movement) < round pedestrian-traffic-light-xpos or no-return  [ 
+  if should-move? movement
+  [
+  ;;not pedestrian-traffic-light-red? or round (xcor + movement) < round pedestrian-traffic-light-xpos or no-return  [ 
     fd movement 
   ]
 end
 
+to-report should-move? [ movement ]
+  let on-or-across-road xcor > road-start-xpos
+  let y  ycor
+  let no-car-approaching  any? cars with [ycor > pedestrian-traffic-light-ypos and ycor > y]
+  ;; cautious: only move if
+  ;; 1. we are on or  across the road or 
+  ;; 2. the light is green and we will not get on the road or
+  ;; 3. the light is green and and no car is approaching us and we will get on the road
+  ifelse walker-type = "cautious" 
+  [   
+    report on-or-across-road or (pedestrian-traffic-light-red? and xcor + movement <= road-start-xpos )
+  ] 
+  [
+    ifelse walker-type = "adaptive" 
+    [
+      
+      report on-or-across-road or (no-car-approaching)
+    ] 
+    [
+      report on-or-across-road or (no-car-approaching)
+    ]
+  ]
+   
+end  
+
 to move-car
-   let movement (random 5 + 2)
+   let movement (random 4 + 1)
    let no-return ycor < car-traffic-light-ypos
    if not car-traffic-light-red? or round (ycor + movement) < round car-traffic-light-ypos or no-return [ 
      fd movement 
@@ -129,10 +162,15 @@ to move-car
 end
 
 to update-world
-  if ticks mod 25 = 0 [
+  if ticks mod 25 = 5 [
     set car-traffic-light-red?  not car-traffic-light-red?
-    set pedestrian-traffic-light-red? not pedestrian-traffic-light-red?
+
     color-traffic-light-car
+
+  ]
+  
+  if ticks mod 25 = 10 [
+    set pedestrian-traffic-light-red? not pedestrian-traffic-light-red?
     color-traffic-light-pedestrian 
   ]
 end  
