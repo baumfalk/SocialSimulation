@@ -1,17 +1,25 @@
 globals [
   prob-police-appearance      ;; in %, so [0,100]
-  prob-police-enforcement     ;; in %, so [0,100]
+  prob-police-enforcement     ;; in %, so [0,100] OR 100/2*jaywalkers
+  
   number-of-people
   number-of-cars
+  
   car-traffic-light-red?
   car-traffic-light-xpos
   car-traffic-light-ypos
+  
   pedestrian-traffic-light-red?
   pedestrian-traffic-light-xpos
   pedestrian-traffic-light-ypos
+    
   road-start-xpos
   road-end-xpos
   
+  tick-car-green
+  tick-car-red
+  tick-pedestrian-green
+  tick-pedestrian-red
 ]
 
 breed [people person]
@@ -20,7 +28,8 @@ breed [cars car]
 people-own [
   walker-type   ;; "cautious", "adaptive", "reckless"
    
-  profit
+  own-profit
+  observed-profit
 ]
 
 cars-own [
@@ -32,7 +41,7 @@ to setup
   setup-globals
   ask patches [ setup-road ]
   setup-people
-  setup-cars
+  ;setup-cars
   reset-ticks
 end
 
@@ -51,6 +60,11 @@ to setup-globals
   
   set road-start-xpos 0
   set road-end-xpos  4
+  
+  set tick-car-green 0
+  set tick-car-red tick-car-green + car-green-time
+  set tick-pedestrian-green round (car-green-time * 1.2)
+  set tick-pedestrian-red tick-pedestrian-green + pedestrian-green-time
   
   color-traffic-light-car
   color-traffic-light-pedestrian 
@@ -119,7 +133,8 @@ to go
 end
  
 to move-person
-  let movement (random 2 + 1) ;; movement speed is a bit random
+  let movement 1
+  ;let movement (random 2 + 1) ;; movement speed is a bit random
   let no-return xcor > pedestrian-traffic-light-xpos
   if should-move? movement
   [
@@ -129,29 +144,61 @@ to move-person
 end
 
 to-report should-move? [ movement ]
-  let on-or-across-road xcor > road-start-xpos
+  let on-or-across-road? xcor > road-start-xpos
   let y  ycor
-  let no-car-approaching  any? cars with [ycor > pedestrian-traffic-light-ypos and ycor > y]
+  let car-approaching?  any? cars with [ycor > pedestrian-traffic-light-ypos and ycor > y]
   ;; cautious: only move if
-  ;; 1. we are on or  across the road or 
+  ;; 1. we are on or across the road or 
   ;; 2. the light is green and we will not get on the road or
   ;; 3. the light is green and and no car is approaching us and we will get on the road
   ifelse walker-type = "cautious" 
   [   
-    report on-or-across-road or (pedestrian-traffic-light-red? and xcor + movement <= road-start-xpos )
+    report cautious-should-move? movement
   ] 
   [
     ifelse walker-type = "adaptive" 
     [
-      
-      report on-or-across-road or (no-car-approaching)
+      ;; adaptive: only move if
+      ;; 1. a cautious person would move or  
+      ;; 2. observed average profit gained by crossing road while red is above X
+      report cautious-should-move? movement
     ] 
+    ;; reckless: only move if
+    ;; 1. a cautious person would move or
+    ;; 2. we expect that no car will not hit us before we crossed the road (through red light)
     [
-      report on-or-across-road or (no-car-approaching)
+      report cautious-should-move? movement
     ]
   ]
    
 end  
+
+to-report cautious-should-move? [ movement ]
+  let on-or-across-road? xcor > road-start-xpos
+  let y  ycor
+  let car-approaching?  any? cars with [ycor > pedestrian-traffic-light-ypos and ycor > y]
+  ;; cautious: only move if
+  ;; 1. we are on or across the road or 
+  ;; 2. we will not get on the road or
+  ;; 3. the light is green and and no car is approaching us and we will get on the road
+  ;; case 1
+  if on-or-across-road?
+  [
+     report true
+  ]
+  ;; case 2
+  if round(xcor + movement) <= round road-start-xpos
+  [
+     report true 
+  ]
+  ;; case 3
+  if not pedestrian-traffic-light-red? and not car-approaching?
+  [
+     report true  
+  ]
+  
+  report false
+end
 
 to move-car
    let movement (random 4 + 1)
@@ -162,24 +209,44 @@ to move-car
 end
 
 to update-world
-  if ticks mod 25 = 5 [
-    set car-traffic-light-red?  not car-traffic-light-red?
-
+  ;; we never want two green lights at the same time, 
+  ;; but we do want that the red lights are on 1/5th of the green time
+  ;; this prevents collisions.
+  ; car-light goes red: 1/5th of green time later pedestrian light goes green
+  if ticks = tick-car-green
+  [
+    set car-traffic-light-red? false
     color-traffic-light-car
-
+   
+    set tick-car-red ticks + car-green-time
+    set tick-pedestrian-green ticks + round (car-green-time * 1.2)
+    set tick-pedestrian-red tick-pedestrian-green + pedestrian-green-time
+    
+    set tick-car-green tick-pedestrian-red + round (pedestrian-green-time * 0.2)
   ]
-  
-  if ticks mod 25 = 10 [
-    set pedestrian-traffic-light-red? not pedestrian-traffic-light-red?
-    color-traffic-light-pedestrian 
+
+  if ticks = tick-car-red
+  [
+    set car-traffic-light-red? true
+    color-traffic-light-car  
+  ]
+  if ticks = tick-pedestrian-green
+  [
+    set pedestrian-traffic-light-red? false
+    color-traffic-light-pedestrian  
+  ]
+  if ticks = tick-pedestrian-red
+  [
+    set pedestrian-traffic-light-red? true
+    color-traffic-light-pedestrian  
   ]
 end  
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
-10
-649
-470
+531
+34
+970
+494
 16
 16
 13.0
@@ -235,6 +302,36 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+33
+162
+205
+195
+car-green-time
+car-green-time
+0
+100
+100
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+34
+208
+207
+241
+pedestrian-green-time
+pedestrian-green-time
+0
+100
+4
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
