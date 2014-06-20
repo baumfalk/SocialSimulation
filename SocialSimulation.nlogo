@@ -1,5 +1,5 @@
 globals [
-  prob-police-appearance      ;; in promille, so [0,1000]
+  ;prob-police-appearance      ;; in promille, so [0,1000]
   prob-police-enforcement     ;; in %, so [0,100] OR 100/2*jaywalkers
   
   ;number-of-people
@@ -48,7 +48,7 @@ to setup
 end
 
 to setup-globals
-  set prob-police-appearance 1
+  ;set prob-police-appearance 1
   set prob-police-enforcement 100 / (0.2 * number-of-people)
   
   ;set number-of-people 100
@@ -351,13 +351,13 @@ NIL
 SLIDER
 5
 50
-177
+185
 83
 car-green-time
 car-green-time
 1
 100
-31
+100
 1
 1
 NIL
@@ -366,13 +366,13 @@ HORIZONTAL
 SLIDER
 5
 85
-178
+185
 118
 pedestrian-green-time
 pedestrian-green-time
 1
 100
-35
+20
 1
 1
 NIL
@@ -381,13 +381,13 @@ HORIZONTAL
 SLIDER
 5
 120
-177
+185
 153
 number-of-people
 number-of-people
 1
 100
-91
+51
 1
 1
 NIL
@@ -396,13 +396,13 @@ HORIZONTAL
 SLIDER
 5
 155
-177
+185
 188
 number-of-cars
 number-of-cars
 0
 100
-90
+10
 1
 1
 NIL
@@ -410,9 +410,9 @@ HORIZONTAL
 
 PLOT
 5
-530
+565
 180
-703
+738
 Average Profit people
 Time
 Profit
@@ -428,9 +428,9 @@ PENS
 
 PLOT
 5
-350
+385
 180
-522
+557
 Average profit boefjes
 Time
 Profit
@@ -446,9 +446,9 @@ PENS
 
 PLOT
 5
-195
+230
 180
-345
+380
 Average profit adaptive
 Time
 Profit
@@ -461,6 +461,21 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot mean [own-profit] of people with [walker-type = \"adaptive\"]"
+
+SLIDER
+5
+190
+185
+223
+prob-police-appearance
+prob-police-appearance
+0
+100
+5
+1
+1
+promille
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
