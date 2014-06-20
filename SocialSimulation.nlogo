@@ -109,7 +109,7 @@ to setup-people
     ifelse prob <= 20
       [ set walker-type "cautious" ] 
       [ifelse prob <= 80
-        [set walker-type "adaptive" set adaptive-threshold random 3 + 3 ]
+        [set walker-type "adaptive" set adaptive-threshold (random 25) + 1 ]
         [set walker-type "reckless"]] 
     assign-color 
   ]
@@ -197,7 +197,8 @@ end
 to-report cautious-should-move? [ movement ]
   let on-or-across-road? xcor > road-start-xpos
   let y  ycor
-  let car-approaching?  any? cars with [ycor < pedestrian-traffic-light-ypos and ycor > y]
+  let car-approaching?  any? cars with [ycor < car-traffic-light-ypos and ycor > y]
+  
   ;; cautious: only move if
   ;; 1. we are on or across the road or 
   ;; 2. we will not get on the road or
@@ -208,7 +209,7 @@ to-report cautious-should-move? [ movement ]
      report true
   ]
   ;; case 2
-  if round(xcor + movement) <= round road-start-xpos
+  if ceiling(xcor + movement) <= road-start-xpos
   [
      report true 
   ]
@@ -245,10 +246,10 @@ to update-lights
     color-traffic-light-car
    
     set tick-car-red ticks + car-green-time
-    set tick-pedestrian-green ticks + round (car-green-time * 1.2)
+    set tick-pedestrian-green ticks + ceiling (car-green-time * 1.2)
     set tick-pedestrian-red tick-pedestrian-green + pedestrian-green-time
     
-    set tick-car-green tick-pedestrian-red + round (pedestrian-green-time * 0.2)
+    set tick-car-green tick-pedestrian-red + ceiling (pedestrian-green-time * 0.2)
   ]
 
   if ticks = tick-car-red
@@ -287,13 +288,13 @@ to update-cops
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-248
-39
-687
-499
+190
+10
+824
+665
 16
 16
-13.0
+18.91
 1
 10
 1
@@ -314,10 +315,10 @@ ticks
 30.0
 
 BUTTON
-89
-72
-152
-105
+75
+10
+138
+43
 NIL
 go
 T
@@ -331,10 +332,10 @@ NIL
 1
 
 BUTTON
+5
 10
-72
-73
-105
+68
+43
 NIL
 setup
 NIL
@@ -348,43 +349,43 @@ NIL
 1
 
 SLIDER
-33
-162
-205
-195
+5
+50
+177
+83
 car-green-time
 car-green-time
-0
+1
 100
-33
+31
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-34
-208
-207
-241
+5
+85
+178
+118
 pedestrian-green-time
 pedestrian-green-time
-0
+1
 100
-11
+35
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-51
-281
-223
-314
+5
+120
+177
+153
 number-of-people
 number-of-people
-0
+1
 100
 91
 1
@@ -393,25 +394,25 @@ NIL
 HORIZONTAL
 
 SLIDER
-53
-323
-225
-356
+5
+155
+177
+188
 number-of-cars
 number-of-cars
 0
 100
-7
+90
 1
 1
 NIL
 HORIZONTAL
 
 PLOT
-420
-503
-687
-676
+5
+530
+180
+703
 Average Profit people
 Time
 Profit
@@ -426,10 +427,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot mean [own-profit] of people"
 
 PLOT
-214
-502
-414
-674
+5
+350
+180
+522
 Average profit boefjes
 Time
 Profit
@@ -444,10 +445,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot mean [own-profit] of people with [walker-type = \"reckless\"]"
 
 PLOT
-6
-520
-206
-670
+5
+195
+180
+345
 Average profit adaptive
 Time
 Profit
@@ -822,5 +823,5 @@ Line -7500403 true 150 150 90 180
 Line -7500403 true 150 150 210 180
 
 @#$#@#$#@
-0
+1
 @#$#@#$#@
