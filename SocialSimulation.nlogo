@@ -1,9 +1,9 @@
 globals [
-  prob-police-appearance      ;; in %, so [0,100]
+  prob-police-appearance      ;; in promille, so [0,1000]
   prob-police-enforcement     ;; in %, so [0,100] OR 100/2*jaywalkers
   
-  number-of-people
-  number-of-cars
+  ;number-of-people
+  ;number-of-cars
   
   car-traffic-light-red?
   car-traffic-light-xpos
@@ -20,6 +20,8 @@ globals [
   tick-car-red
   tick-pedestrian-green
   tick-pedestrian-red
+  average-profit-redwalkers
+  number-of-additions-redwalkers
 ]
 
 breed [people person]
@@ -29,7 +31,7 @@ people-own [
   walker-type   ;; "cautious", "adaptive", "reckless"
   walked-through-red? 
   own-profit
-  observed-profit
+  adaptive-threshold
 ]
 
 cars-own [
@@ -41,16 +43,16 @@ to setup
   setup-globals
   ask patches [ setup-road ]
   setup-people
-  ;setup-cars
+  setup-cars
   reset-ticks
 end
 
 to setup-globals
-  set prob-police-appearance 99 
-  set prob-police-enforcement 80
+  set prob-police-appearance 1
+  set prob-police-enforcement 100 / (0.2 * number-of-people)
   
-  set number-of-people 100
-  set number-of-cars 3
+  ;set number-of-people 100
+  ;set number-of-cars 25
   
   set car-traffic-light-red? false
   set car-traffic-light-xpos 4
@@ -64,8 +66,11 @@ to setup-globals
   
   set tick-car-green 0
   set tick-car-red tick-car-green + car-green-time
-  set tick-pedestrian-green round (car-green-time * 1.2)
+  set tick-pedestrian-green ceiling (car-green-time * 1.2)
   set tick-pedestrian-red tick-pedestrian-green + pedestrian-green-time
+  
+  set average-profit-redwalkers 0
+  set number-of-additions-redwalkers 0
   
   color-traffic-light-car
   color-traffic-light-pedestrian 
@@ -104,7 +109,7 @@ to setup-people
     ifelse prob <= 20
       [ set walker-type "cautious" ] 
       [ifelse prob <= 80
-        [set walker-type "adaptive"]
+        [set walker-type "adaptive" set adaptive-threshold random 3 + 3 ]
         [set walker-type "reckless"]] 
     assign-color 
   ]
@@ -127,32 +132,34 @@ to assign-color ;; turtle procedure
 end  
 
 to go
-  ask people [ move-person ]
-  ask cars [ move-car pen-down ]
+  ask-concurrent people [ move-person ]
+  ask-concurrent cars [ move-car pen-down ]
   update-world
   tick
 end
  
 to move-person
-  let movement 1
+  let movement (random 2 + 1)
   ;let movement (random 2 + 1) ;; movement speed is a bit random
 
   if should-move? movement
   [
     ;; walked through red?
     let moved-onto-road? xcor <= pedestrian-traffic-light-xpos and xcor + movement > pedestrian-traffic-light-xpos
-    if pedestrian-traffic-light-red? and moved-onto-road
+    if pedestrian-traffic-light-red? and moved-onto-road?
     [
      set  walked-through-red? true
     ]
     
-    if xcor > road-end-xpos and walked-through-red?
+    ;; made it across the road without being spotted
+    if xcor > road-end-xpos and walked-through-red? = true
     [
      set walked-through-red? false 
+     set own-profit  own-profit + 1
+     set number-of-additions-redwalkers 0
     ]
     
     fd movement
-     
   ]
 end
 
@@ -160,6 +167,7 @@ to-report should-move? [ movement ]
   let on-or-across-road? xcor > road-start-xpos
   let y  ycor
   let car-approaching?  any? cars with [ycor > pedestrian-traffic-light-ypos and ycor > y]
+  let average-profit mean [own-profit] of people with [walker-type != "cautious"]
   ;; cautious: only move if
   ;; 1. we are on or across the road or 
   ;; 2. the light is green and we will not get on the road or
@@ -174,13 +182,13 @@ to-report should-move? [ movement ]
       ;; adaptive: only move if
       ;; 1. a cautious person would move or  
       ;; 2. observed average profit gained by crossing road while red is above X
-      report cautious-should-move? movement
+      report cautious-should-move? movement or (not car-approaching? and average-profit > adaptive-threshold)
     ] 
     ;; reckless: only move if
     ;; 1. a cautious person would move or
     ;; 2. we expect that no car will not hit us before we crossed the road (through red light)
     [
-      report cautious-should-move? movement
+      report cautious-should-move? movement or not car-approaching?
     ]
   ]
    
@@ -189,7 +197,7 @@ end
 to-report cautious-should-move? [ movement ]
   let on-or-across-road? xcor > road-start-xpos
   let y  ycor
-  let car-approaching?  any? cars with [ycor > pedestrian-traffic-light-ypos and ycor > y]
+  let car-approaching?  any? cars with [ycor < pedestrian-traffic-light-ypos and ycor > y]
   ;; cautious: only move if
   ;; 1. we are on or across the road or 
   ;; 2. we will not get on the road or
@@ -222,7 +230,6 @@ to move-car
 end
 
 to update-world
- 
   update-lights
   update-cops
 end  
@@ -262,13 +269,20 @@ to update-lights
 end
 
 to update-cops
-  let prob random 100
-  let prob2 random 100
+  let prob random 1001
+  let prob2 random 101
   if prob < prob-police-appearance
   [
     ;; deliquents are people who walked through the red light
-    let deliquents people with [walked-through-red?]
+    let deliquents (people with [walked-through-red? = true])
+    
     show deliquents
+    show ticks
+    ask deliquents 
+    [
+      set own-profit  own-profit - 50
+      set walked-through-red? false
+    ]
   ]
 end
 @#$#@#$#@
@@ -342,7 +356,7 @@ car-green-time
 car-green-time
 0
 100
-100
+33
 1
 1
 NIL
@@ -357,11 +371,95 @@ pedestrian-green-time
 pedestrian-green-time
 0
 100
-4
+11
 1
 1
 NIL
 HORIZONTAL
+
+SLIDER
+51
+281
+223
+314
+number-of-people
+number-of-people
+0
+100
+91
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+53
+323
+225
+356
+number-of-cars
+number-of-cars
+0
+100
+7
+1
+1
+NIL
+HORIZONTAL
+
+PLOT
+420
+503
+687
+676
+Average Profit people
+Time
+Profit
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot mean [own-profit] of people"
+
+PLOT
+214
+502
+414
+674
+Average profit boefjes
+Time
+Profit
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot mean [own-profit] of people with [walker-type = \"reckless\"]"
+
+PLOT
+6
+520
+206
+670
+Average profit adaptive
+Time
+Profit
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot mean [own-profit] of people with [walker-type = \"adaptive\"]"
 
 @#$#@#$#@
 ## WHAT IS IT?
