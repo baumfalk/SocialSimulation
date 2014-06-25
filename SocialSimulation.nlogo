@@ -154,7 +154,7 @@ to move-person
     ]
     
     ;; made it across the road without being spotted
-    if xcor > road-end-xpos and walked-through-red? = true
+    if (xcor > road-end-xpos or xcor + movement > road-end-xpos) and walked-through-red? = true
     [
      set walked-through-red? false 
      let profit-gained (tick-pedestrian-green - ticks) * 0.1
@@ -405,7 +405,7 @@ pedestrian-green-time
 pedestrian-green-time
 1
 100
-20
+10
 1
 1
 NIL
@@ -420,7 +420,7 @@ number-of-people
 number-of-people
 1
 100
-100
+50
 1
 1
 NIL
@@ -435,7 +435,7 @@ number-of-cars
 number-of-cars
 0
 100
-10
+20
 1
 1
 NIL
@@ -504,7 +504,7 @@ prob-police-appearance
 prob-police-appearance
 0
 100
-10
+0
 1
 1
 promille
@@ -515,18 +515,18 @@ PLOT
 360
 1075
 510
-Red light walkers
+Red light walkers %
 NIL
 NIL
 0.0
 10.0
 0.0
-10.0
+1.0
 true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot number-of-red-walkers"
+"default" 1.0 0 -16777216 true "" "plot number-of-red-walkers / number-of-people"
 
 PLOT
 830
