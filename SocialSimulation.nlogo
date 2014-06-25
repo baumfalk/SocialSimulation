@@ -20,8 +20,8 @@ globals [
   tick-car-red
   tick-pedestrian-green
   tick-pedestrian-red
-  average-profit-redwalkers
-  number-of-additions-redwalkers
+  
+  number-of-red-walkers 
 ]
 
 breed [people person]
@@ -32,6 +32,8 @@ people-own [
   walked-through-red? 
   own-profit
   adaptive-threshold
+  adaptive-threshold2
+  adaptive-gone-reckless
 ]
 
 cars-own [
@@ -68,9 +70,8 @@ to setup-globals
   set tick-car-red tick-car-green + car-green-time
   set tick-pedestrian-green ceiling (car-green-time * 1.2)
   set tick-pedestrian-red tick-pedestrian-green + pedestrian-green-time
-  
-  set average-profit-redwalkers 0
-  set number-of-additions-redwalkers 0
+    
+  set number-of-red-walkers 0
   
   color-traffic-light-car
   color-traffic-light-pedestrian 
@@ -109,9 +110,9 @@ to setup-people
     ifelse prob <= 20
       [ set walker-type "cautious" ] 
       [ifelse prob <= 80
-        [set walker-type "adaptive" set adaptive-threshold (random 25) + 1 ]
+        [set walker-type "adaptive" set adaptive-threshold (random 25) + 1 set adaptive-threshold2 (random-float 0.5) + 0.15 set adaptive-gone-reckless false]
         [set walker-type "reckless"]] 
-    assign-color 
+    assign-color
   ]
 end
 
@@ -154,12 +155,22 @@ to move-person
     ;; made it across the road without being spotted
     if xcor > road-end-xpos and walked-through-red? = true
     [
-     set walked-through-red? false 
+     set walked-through-red? false     
      set own-profit  own-profit + 1
-     set number-of-additions-redwalkers 0
+     set number-of-red-walkers number-of-red-walkers + 1 
+     update-adaptive-persons
     ]
     
     fd movement
+  ]
+end
+
+to update-adaptive-persons
+  let percentage-red  number-of-red-walkers / number-of-people
+  ask-concurrent (people with [walker-type = "adaptive"]) 
+  [
+    if percentage-red > 
+    
   ]
 end
 
@@ -260,6 +271,7 @@ to update-lights
   if ticks = tick-pedestrian-green
   [
     set pedestrian-traffic-light-red? false
+    set number-of-red-walkers 0
     color-traffic-light-pedestrian  
   ]
   if ticks = tick-pedestrian-red
@@ -476,6 +488,24 @@ prob-police-appearance
 1
 promille
 HORIZONTAL
+
+PLOT
+845
+360
+1045
+510
+Red light walkers
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot number-of-red-walkers"
 
 @#$#@#$#@
 ## WHAT IS IT?
