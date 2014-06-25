@@ -34,6 +34,7 @@ people-own [
   adaptive-threshold
   adaptive-threshold2
   adaptive-gone-reckless
+  adaptive-cooldown
 ]
 
 cars-own [
@@ -110,7 +111,7 @@ to setup-people
     ifelse prob <= 20
       [ set walker-type "cautious" ] 
       [ifelse prob <= 80
-        [set walker-type "adaptive" set adaptive-threshold (random 25) + 1 set adaptive-threshold2 (random-float 0.5) + 0.15 set adaptive-gone-reckless false]
+        [set walker-type "adaptive" set adaptive-threshold (random 25) + 1 set adaptive-threshold2 (random-float 0.5) + 0.15 set adaptive-gone-reckless false set adaptive-cooldown 0]
         [set walker-type "reckless"]] 
     assign-color
   ]
@@ -155,8 +156,9 @@ to move-person
     ;; made it across the road without being spotted
     if xcor > road-end-xpos and walked-through-red? = true
     [
-     set walked-through-red? false     
-     set own-profit  own-profit + 1
+     set walked-through-red? false 
+     let profit-gained (tick-pedestrian-green - ticks) * 0.1
+     set own-profit  own-profit + (profit-gained)
      set number-of-red-walkers number-of-red-walkers + 1 
      update-adaptive-persons
     ]
@@ -167,10 +169,15 @@ end
 
 to update-adaptive-persons
   let percentage-red  number-of-red-walkers / number-of-people
-  ask-concurrent (people with [walker-type = "adaptive"]) 
+  ;; some adaptive people saw enough people walk through red. Become reckless again!
+  ask-concurrent (people with [walker-type = "adaptive" and adaptive-gone-reckless = false and percentage-red >= adaptive-threshold2 and adaptive-cooldown = 0]) 
   [
-    if percentage-red > 
-    
+     set adaptive-gone-reckless true
+  ]
+  
+  ask-concurrent (people with [walker-type = "adaptive" and adaptive-cooldown > 0]) 
+  [
+    set adaptive-cooldown adaptive-cooldown - 1
   ]
 end
 
@@ -193,7 +200,7 @@ to-report should-move? [ movement ]
       ;; adaptive: only move if
       ;; 1. a cautious person would move or  
       ;; 2. observed average profit gained by crossing road while red is above X
-      report cautious-should-move? movement or (not car-approaching? and average-profit > adaptive-threshold)
+      report cautious-should-move? movement or (not car-approaching? and adaptive-gone-reckless and average-profit > adaptive-threshold) 
     ] 
     ;; reckless: only move if
     ;; 1. a cautious person would move or
@@ -272,6 +279,13 @@ to update-lights
   [
     set pedestrian-traffic-light-red? false
     set number-of-red-walkers 0
+    let percentage-red  number-of-red-walkers / number-of-people  
+  ;; some adaptive people didn't see enough people walk through red. Become cautious again!
+  ask-concurrent (people with [walker-type = "adaptive" and adaptive-gone-reckless = true and percentage-red < adaptive-threshold2]) 
+  [
+     set adaptive-gone-reckless false
+  ]
+    
     color-traffic-light-pedestrian  
   ]
   if ticks = tick-pedestrian-red
@@ -289,12 +303,19 @@ to update-cops
     ;; deliquents are people who walked through the red light
     let deliquents (people with [walked-through-red? = true])
     
+    
     show deliquents
     show ticks
     ask deliquents 
     [
       set own-profit  own-profit - 50
       set walked-through-red? false
+      if walker-type = "adaptive"
+      [
+        set adaptive-gone-reckless false
+        set adaptive-cooldown 150
+      ]
+      
     ]
   ]
 end
@@ -399,7 +420,7 @@ number-of-people
 number-of-people
 1
 100
-51
+100
 1
 1
 NIL
@@ -443,7 +464,7 @@ PLOT
 385
 180
 557
-Average profit boefjes
+Average profit reckless
 Time
 Profit
 0.0
@@ -483,16 +504,16 @@ prob-police-appearance
 prob-police-appearance
 0
 100
-5
+10
 1
 1
 promille
 HORIZONTAL
 
 PLOT
-845
+830
 360
-1045
+1075
 510
 Red light walkers
 NIL
@@ -506,6 +527,42 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot number-of-red-walkers"
+
+PLOT
+830
+515
+1075
+665
+average cooldown
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot mean [adaptive-cooldown] of people with [walker-type = \"adaptive\"]"
+
+PLOT
+830
+205
+1070
+355
+Number of adaptives gone reckless
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot count people with [walker-type = \"adaptive\" and adaptive-gone-reckless = true]"
 
 @#$#@#$#@
 ## WHAT IS IT?
