@@ -22,6 +22,9 @@ globals [
   tick-pedestrian-red
   
   number-of-red-walkers 
+  
+  total-number-of-red-lights
+  total-number-of-red-light-walkers
 ]
 
 breed [people person]
@@ -31,10 +34,10 @@ people-own [
   walker-type   ;; "cautious", "adaptive", "reckless"
   walked-through-red? 
   own-profit
-  adaptive-threshold
-  adaptive-threshold2
+  adaptive-threshold-time-gained
+  adaptive-threshold-time-gained-people-crossing
   adaptive-gone-reckless
-  adaptive-cooldown
+  cooldown
 ]
 
 cars-own [
@@ -73,7 +76,8 @@ to setup-globals
   set tick-pedestrian-red tick-pedestrian-green + pedestrian-green-time
     
   set number-of-red-walkers 0
-  
+  set   total-number-of-red-lights 0
+  set  total-number-of-red-light-walkers 0
   color-traffic-light-car
   color-traffic-light-pedestrian 
 end
@@ -111,9 +115,10 @@ to setup-people
     ifelse prob <= 20
       [ set walker-type "cautious" ] 
       [ifelse prob <= 80
-        [set walker-type "adaptive" set adaptive-threshold (random 25) + 1 set adaptive-threshold2 (random-float 0.5) + 0.15 set adaptive-gone-reckless false set adaptive-cooldown 0]
+        [set walker-type "adaptive" set adaptive-threshold-time-gained (random 25) + 1 set adaptive-threshold-time-gained-people-crossing (random-float 0.5) + 0.15 set adaptive-gone-reckless false ]
         [set walker-type "reckless"]] 
     assign-color
+    set cooldown 0
   ]
 end
 
@@ -135,6 +140,10 @@ end
 
 to go
   ask-concurrent people [ move-person ]
+   ask-concurrent (people with [cooldown > 0]) 
+    [
+      set cooldown cooldown - 1
+    ]
   ask-concurrent cars [ move-car pen-down ]
   update-world
   tick
@@ -157,12 +166,18 @@ to move-person
     if (xcor > road-end-xpos or xcor + movement > road-end-xpos) and walked-through-red? = true
     [
      set walked-through-red? false 
-     let profit-gained (tick-pedestrian-green - ticks) * 0.1
+     let profit-gained (tick-pedestrian-green + 5 - ticks) * 0.1
+     if profit-gained < 0 
+     [
+       set profit-gained 0
+     ]
      set own-profit  own-profit + (profit-gained)
      set number-of-red-walkers number-of-red-walkers + 1 
+     if walker-type = "adaptive"
+     [set total-number-of-red-light-walkers total-number-of-red-light-walkers + 1 ]
      update-adaptive-persons
     ]
-    
+   
     fd movement
   ]
 end
@@ -170,15 +185,12 @@ end
 to update-adaptive-persons
   let percentage-red  number-of-red-walkers / number-of-people
   ;; some adaptive people saw enough people walk through red. Become reckless again!
-  ask-concurrent (people with [walker-type = "adaptive" and adaptive-gone-reckless = false and percentage-red >= adaptive-threshold2 and adaptive-cooldown = 0]) 
+  ask-concurrent (people with [walker-type = "adaptive" and adaptive-gone-reckless = false and percentage-red >= adaptive-threshold-time-gained-people-crossing and cooldown = 0]) 
   [
      set adaptive-gone-reckless true
   ]
   
-  ask-concurrent (people with [walker-type = "adaptive" and adaptive-cooldown > 0]) 
-  [
-    set adaptive-cooldown adaptive-cooldown - 1
-  ]
+ 
 end
 
 to-report should-move? [ movement ]
@@ -200,13 +212,14 @@ to-report should-move? [ movement ]
       ;; adaptive: only move if
       ;; 1. a cautious person would move or  
       ;; 2. observed average profit gained by crossing road while red is above X
-      report cautious-should-move? movement or (not car-approaching? and adaptive-gone-reckless and average-profit > adaptive-threshold) 
+      ;; 3. there are enough people also crossing the road
+      report cautious-should-move? movement or (not car-approaching? and adaptive-gone-reckless and average-profit > adaptive-threshold-time-gained) 
     ] 
     ;; reckless: only move if
     ;; 1. a cautious person would move or
     ;; 2. we expect that no car will not hit us before we crossed the road (through red light)
     [
-      report cautious-should-move? movement or not car-approaching?
+      report cautious-should-move? movement or (not car-approaching? and cooldown = 0)
     ]
   ]
    
@@ -281,7 +294,7 @@ to update-lights
     set number-of-red-walkers 0
     let percentage-red  number-of-red-walkers / number-of-people  
   ;; some adaptive people didn't see enough people walk through red. Become cautious again!
-  ask-concurrent (people with [walker-type = "adaptive" and adaptive-gone-reckless = true and percentage-red < adaptive-threshold2]) 
+  ask-concurrent (people with [walker-type = "adaptive" and adaptive-gone-reckless = true and percentage-red < adaptive-threshold-time-gained-people-crossing]) 
   [
      set adaptive-gone-reckless false
   ]
@@ -291,31 +304,32 @@ to update-lights
   if ticks = tick-pedestrian-red
   [
     set pedestrian-traffic-light-red? true
+    set total-number-of-red-lights total-number-of-red-lights + 1
     color-traffic-light-pedestrian  
   ]
 end
 
 to update-cops
-  let prob random 1001
-  let prob2 random 101
-  if prob < prob-police-appearance
+  let prob 1 + random 100 
+  let prob2 1 + random 100
+  if prob < prob-police-appearance and ticks mod 50 = 0 + random 11
   [
     ;; deliquents are people who walked through the red light
     let deliquents (people with [walked-through-red? = true])
     
     
-    show deliquents
-    show ticks
+    ;show deliquents
+    ;show ticks
     ask deliquents 
     [
-      set own-profit  own-profit - 50
+      set own-profit  own-profit - fine
       set walked-through-red? false
       if walker-type = "adaptive"
       [
         set adaptive-gone-reckless false
-        set adaptive-cooldown 150
+        
       ]
-      
+      set cooldown fine ;; everyone gets a cooldown
     ]
   ]
 end
@@ -405,7 +419,7 @@ pedestrian-green-time
 pedestrian-green-time
 1
 100
-10
+20
 1
 1
 NIL
@@ -418,9 +432,9 @@ SLIDER
 153
 number-of-people
 number-of-people
-1
+10
 100
-50
+20
 1
 1
 NIL
@@ -435,17 +449,17 @@ number-of-cars
 number-of-cars
 0
 100
-20
+10
 1
 1
 NIL
 HORIZONTAL
 
 PLOT
-5
-565
-180
-738
+830
+30
+1005
+203
 Average Profit people
 Time
 Profit
@@ -461,9 +475,9 @@ PENS
 
 PLOT
 5
-385
+465
 180
-557
+637
 Average profit reckless
 Time
 Profit
@@ -479,9 +493,9 @@ PENS
 
 PLOT
 5
-230
+310
 180
-380
+460
 Average profit adaptive
 Time
 Profit
@@ -507,7 +521,7 @@ prob-police-appearance
 0
 1
 1
-promille
+percent
 HORIZONTAL
 
 PLOT
@@ -544,7 +558,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot mean [adaptive-cooldown] of people with [walker-type = \"adaptive\"]"
+"default" 1.0 0 -16777216 true "" "plot mean [cooldown] of people with [walker-type = \"adaptive\" or walker-type = \"reckless\"]"
 
 PLOT
 830
@@ -563,6 +577,39 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot count people with [walker-type = \"adaptive\" and adaptive-gone-reckless = true]"
+
+SLIDER
+5
+225
+185
+258
+fine
+fine
+1
+500
+251
+10
+1
+NIL
+HORIZONTAL
+
+PLOT
+1110
+110
+1310
+260
+Average Adaptive that walk trough red
+NIL
+NIL
+0.0
+10.0
+0.0
+1.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot ((total-number-of-red-light-walkers) / (total-number-of-red-lights + 1)) / number-of-people"
 
 @#$#@#$#@
 ## WHAT IS IT?
